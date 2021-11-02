@@ -1,5 +1,4 @@
 ﻿using Bit.Core.Models.Data;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -46,6 +45,17 @@ namespace Bit.Core.Utilities
         private static readonly string _colemakMap = "qwfpgjluy;arstdhneiozxcvbkmQWFPGJLUY:ARSTDHNEIOZXCVBKM";
         private static readonly string CloudFlareConnectingIp = "CF-Connecting-IP";
         private static readonly string RealIp = "X-Real-IP";
+
+        public static JsonSerializerOptions DefaultSerializerOptions { get;}
+
+        static CoreHelpers()
+        {
+            // Set default Json options here
+            DefaultSerializerOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            };
+        }
 
         /// <summary>
         /// Generate sequential Guid for Sql Server.
@@ -434,7 +444,7 @@ namespace Bit.Core.Utilities
         /// </summary>
         public static T CloneObject<T>(T obj)
         {
-            return JsonConvert.DeserializeObject<T>(JsonConvert.SerializeObject(obj));
+            return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(Newtonsoft.Json.JsonConvert.SerializeObject(obj));
         }
 
         public static bool SettingHasValue(string setting)
@@ -920,6 +930,16 @@ namespace Bit.Core.Utilities
             {
                 return text;
             }
+        }
+
+        public static T JsonDeserialize<T>(string json)
+        {
+            return JsonSerializer.Deserialize<T>(json, DefaultSerializerOptions);
+        }
+
+        public static string JsonSerialize<T>(T obj)
+        {
+            return JsonSerializer.Serialize(obj, DefaultSerializerOptions);
         }
     }
 }
