@@ -199,52 +199,12 @@ namespace Bit.Api.Test.Controllers
 
         [Theory]
         [BitAutoData]
-        public async Task RedeemSponsorship_BadToken_ThrowsBadRequest(string sponsorshipToken,
-            OrganizationSponsorshipRedeemRequestModel model, SutProvider<OrganizationSponsorshipsController> sutProvider)
-        {
-            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(sponsorshipToken)
-                .Returns(false);
-
-            var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
-                sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
-
-            Assert.Contains("Failed to parse sponsorship token.", exception.Message);
-            await sutProvider.GetDependency<IOrganizationSponsorshipService>()
-                .DidNotReceiveWithAnyArgs()
-                .SetUpSponsorshipAsync(default, default);
-        }
-
-        [Theory]
-        [BitAutoData]
-        public async Task RedeemSponsorship_NotSponsoredOrgOwner_ThrowsBadRequest(string sponsorshipToken,
-            OrganizationSponsorshipRedeemRequestModel model, SutProvider<OrganizationSponsorshipsController> sutProvider)
-        {
-            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(sponsorshipToken)
-                .Returns(true);
-            sutProvider.GetDependency<ICurrentContext>().OrganizationOwner(model.SponsoredOrganizationId).Returns(false);
-
-            var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
-                sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
-
-            Assert.Contains("Can only redeem sponsorship for an organization you own.", exception.Message);
-            await sutProvider.GetDependency<IOrganizationSponsorshipService>()
-                .DidNotReceiveWithAnyArgs()
-                .SetUpSponsorshipAsync(default, default);
-        }
-
-        [Theory]
-        [BitAutoData]
         public async Task RedeemSponsorship_SponsorshipNotFound_ThrowsBadRequest(string sponsorshipToken,
             OrganizationSponsorshipRedeemRequestModel model, User user,
             SutProvider<OrganizationSponsorshipsController> sutProvider)
         {
-            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(sponsorshipToken)
-                .Returns(true);
-            sutProvider.GetDependency<ICurrentContext>().OrganizationOwner(model.SponsoredOrganizationId).Returns(true);
             sutProvider.GetDependency<ICurrentContext>().UserId.Returns(user.Id);
             sutProvider.GetDependency<IUserService>().GetUserByIdAsync(user.Id).Returns(user);
-            sutProvider.GetDependency<IOrganizationSponsorshipRepository>().GetByOfferedToEmailAsync(user.Email)
-                .Returns((OrganizationSponsorship)null);
 
             var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
                 sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
@@ -257,44 +217,126 @@ namespace Bit.Api.Test.Controllers
 
         [Theory]
         [BitAutoData]
-        public async Task RedeemSponsorship_OfferedToDifferentEmail_ThrowsBadRequest(string sponsorshipToken,
+        public async Task RedeemSponsorship_SponsoringOrgNotFound_ThrowsBadRequest(string sponsorshipToken,
             OrganizationSponsorshipRedeemRequestModel model, User user, OrganizationSponsorship sponsorship,
             SutProvider<OrganizationSponsorshipsController> sutProvider)
         {
-            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(sponsorshipToken)
-                .Returns(true);
-            sutProvider.GetDependency<ICurrentContext>().OrganizationOwner(model.SponsoredOrganizationId).Returns(true);
             sutProvider.GetDependency<ICurrentContext>().UserId.Returns(user.Id);
             sutProvider.GetDependency<IUserService>().GetUserByIdAsync(user.Id).Returns(user);
-            sutProvider.GetDependency<IOrganizationSponsorshipRepository>().GetByOfferedToEmailAsync(user.Email)
-                .Returns(sponsorship);
+            sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
+                .GetByOfferedToEmailAsync(user.Email).Returns(sponsorship);
 
             var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
                 sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
 
-            Assert.Contains("This sponsorship offer was issued to a different user email address.", exception.Message);
+            Assert.Contains("Sponsor offer is invalid, cannot find the sponsoring organization.", exception.Message);
             await sutProvider.GetDependency<IOrganizationSponsorshipService>()
                 .DidNotReceiveWithAnyArgs()
                 .SetUpSponsorshipAsync(default, default);
         }
 
         [Theory]
-        [BitAutoData]
-        public async Task RedeemSponsorship_OrgAlreadySponsored_ThrowsBadRequest(string sponsorshipToken,
-            OrganizationSponsorshipRedeemRequestModel model, User user, OrganizationSponsorship sponsorship,
-            OrganizationSponsorship existingSponsorship, SutProvider<OrganizationSponsorshipsController> sutProvider)
+        [BitMemberAutoData(nameof(NonEnterprisePlanTypes))]
+        public async Task RedeemSponsorship_SponsoringOrgNotCorrectType_ThrowsBadRequest(PlanType planType,
+            string sponsorshipToken, OrganizationSponsorshipRedeemRequestModel model, User user,
+            OrganizationSponsorship sponsorship, Organization sponsoringOrg,
+            SutProvider<OrganizationSponsorshipsController> sutProvider)
         {
-            user.Email = sponsorship.OfferedToEmail;
+            sponsoringOrg.PlanType = planType;
+            sponsorship.SponsoringOrganizationId = sponsoringOrg.Id;
 
-            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(sponsorshipToken)
-                .Returns(true);
-            sutProvider.GetDependency<ICurrentContext>().OrganizationOwner(model.SponsoredOrganizationId).Returns(true);
             sutProvider.GetDependency<ICurrentContext>().UserId.Returns(user.Id);
             sutProvider.GetDependency<IUserService>().GetUserByIdAsync(user.Id).Returns(user);
             sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
-                .GetByOfferedToEmailAsync(sponsorship.OfferedToEmail).Returns(sponsorship);
+                .GetByOfferedToEmailAsync(user.Email).Returns(sponsorship);
+            sutProvider.GetDependency<IOrganizationRepository>().GetByIdAsync(sponsoringOrg.Id).Returns(sponsoringOrg);
+
+            var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
+                sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
+
+            Assert.Contains("Specified Organization cannot sponsor other organizations.", exception.Message);
+            await sutProvider.GetDependency<IOrganizationSponsorshipService>()
+                .DidNotReceiveWithAnyArgs()
+                .SetUpSponsorshipAsync(default, default);
+        }
+
+        [Theory]
+        [BitMemberAutoData(nameof(EnterprisePlanTypes))]
+        public async Task RedeemSponsorship_BadToken_ThrowsBadRequest(PlanType planType,
+            string sponsorshipToken, OrganizationSponsorshipRedeemRequestModel model, User user,
+            OrganizationSponsorship sponsorship, Organization sponsoringOrg,
+            SutProvider<OrganizationSponsorshipsController> sutProvider)
+        {
+            sponsoringOrg.PlanType = planType;
+            sponsorship.SponsoringOrganizationId = sponsoringOrg.Id;
+
+            sutProvider.GetDependency<ICurrentContext>().UserId.Returns(user.Id);
+            sutProvider.GetDependency<IUserService>().GetUserByIdAsync(user.Id).Returns(user);
             sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
-                .GetBySponsoredOrganizationIdAsync(model.SponsoredOrganizationId).Returns(existingSponsorship);
+                .GetByOfferedToEmailAsync(user.Email).Returns(sponsorship);
+            sutProvider.GetDependency<IOrganizationRepository>().GetByIdAsync(sponsoringOrg.Id).Returns(sponsoringOrg);
+            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(default, default)
+                .ReturnsForAnyArgs(false);
+
+
+            var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
+                sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
+
+            Assert.Contains("Failed to parse sponsorship token.", exception.Message);
+            await sutProvider.GetDependency<IOrganizationSponsorshipService>()
+                .DidNotReceiveWithAnyArgs()
+                .SetUpSponsorshipAsync(default, default);
+        }
+
+        [Theory]
+        [BitMemberAutoData(nameof(EnterprisePlanTypes))]
+        public async Task RedeemSponsorship_NotSponsoredOrgOwner_ThrowsBadRequest(PlanType planType,
+            string sponsorshipToken, OrganizationSponsorshipRedeemRequestModel model, User user,
+            OrganizationSponsorship sponsorship, Organization sponsoringOrg,
+            SutProvider<OrganizationSponsorshipsController> sutProvider)
+        {
+            sponsoringOrg.PlanType = planType;
+            sponsorship.SponsoringOrganizationId = sponsoringOrg.Id;
+
+            sutProvider.GetDependency<ICurrentContext>().UserId.Returns(user.Id);
+            sutProvider.GetDependency<IUserService>().GetUserByIdAsync(user.Id).Returns(user);
+            sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
+                .GetByOfferedToEmailAsync(user.Email).Returns(sponsorship);
+            sutProvider.GetDependency<IOrganizationRepository>().GetByIdAsync(sponsoringOrg.Id).Returns(sponsoringOrg);
+            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(default, default)
+                .ReturnsForAnyArgs(true);
+            sutProvider.GetDependency<ICurrentContext>().OrganizationOwner(model.SponsoredOrganizationId).Returns(false);
+
+            var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
+                sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
+
+            Assert.Contains("Can only redeem sponsorship for an organization you own.", exception.Message);
+            await sutProvider.GetDependency<IOrganizationSponsorshipService>()
+                .DidNotReceiveWithAnyArgs()
+                .SetUpSponsorshipAsync(default, default);
+        }
+
+        [Theory]
+        [BitMemberAutoData(nameof(EnterprisePlanTypes))]
+        public async Task RedeemSponsorship_OrgAlreadySponsored_ThrowsBadRequest(PlanType planType,
+            string sponsorshipToken, OrganizationSponsorshipRedeemRequestModel model, User user,
+            OrganizationSponsorship sponsorship, Organization sponsoringOrg,
+            SutProvider<OrganizationSponsorshipsController> sutProvider)
+        {
+            sponsoringOrg.PlanType = planType;
+            sponsorship.SponsoringOrganizationId = sponsoringOrg.Id;
+            user.Email = sponsorship.OfferedToEmail;
+
+            sutProvider.GetDependency<ICurrentContext>().UserId.Returns(user.Id);
+            sutProvider.GetDependency<IUserService>().GetUserByIdAsync(user.Id).Returns(user);
+            sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
+                .GetByOfferedToEmailAsync(user.Email).Returns(sponsorship);
+            sutProvider.GetDependency<IOrganizationRepository>().GetByIdAsync(sponsoringOrg.Id).Returns(sponsoringOrg);
+            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(default, default)
+                .ReturnsForAnyArgs(true);
+            sutProvider.GetDependency<ICurrentContext>().OrganizationOwner(model.SponsoredOrganizationId).Returns(true);
+            sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
+                .GetBySponsoredOrganizationIdAsync(model.SponsoredOrganizationId).Returns(sponsorship);
 
             var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
                 sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
@@ -306,24 +348,27 @@ namespace Bit.Api.Test.Controllers
         }
 
         [Theory]
-        [BitAutoData]
-        public async Task RedeemSponsorship_OrgNotFamiles_ThrowsBadRequest(PlanType planType, string sponsorshipToken,
-            OrganizationSponsorshipRedeemRequestModel model, User user, OrganizationSponsorship sponsorship,
-            Organization org, SutProvider<OrganizationSponsorshipsController> sutProvider)
+        [BitMemberAutoData(nameof(NonFamiliesPlanTypes))]
+        public async Task RedeemSponsorship_OrgNotFamiles_ThrowsBadRequest(PlanType planType,
+            string sponsorshipToken, OrganizationSponsorshipRedeemRequestModel model, User user,
+            OrganizationSponsorship sponsorship, Organization sponsoringOrg, Organization sponsoredOrg,
+            SutProvider<OrganizationSponsorshipsController> sutProvider)
         {
-            user.Email = sponsorship.OfferedToEmail;
-            org.PlanType = planType;
+            sponsoringOrg.PlanType = PlanType.EnterpriseAnnually;
+            sponsorship.SponsoringOrganizationId = sponsoringOrg.Id;
+            sponsoredOrg.PlanType = planType;
 
-            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(sponsorshipToken)
-                .Returns(true);
-            sutProvider.GetDependency<ICurrentContext>().OrganizationOwner(model.SponsoredOrganizationId).Returns(true);
             sutProvider.GetDependency<ICurrentContext>().UserId.Returns(user.Id);
             sutProvider.GetDependency<IUserService>().GetUserByIdAsync(user.Id).Returns(user);
             sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
-                .GetByOfferedToEmailAsync(sponsorship.OfferedToEmail).Returns(sponsorship);
+                .GetByOfferedToEmailAsync(user.Email).Returns(sponsorship);
+            sutProvider.GetDependency<IOrganizationRepository>().GetByIdAsync(sponsoringOrg.Id).Returns(sponsoringOrg);
+            sutProvider.GetDependency<IOrganizationSponsorshipService>().ValidateRedemptionTokenAsync(default, default)
+                .ReturnsForAnyArgs(true);
+            sutProvider.GetDependency<ICurrentContext>().OrganizationOwner(model.SponsoredOrganizationId).Returns(true);
             sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
                 .GetBySponsoredOrganizationIdAsync(model.SponsoredOrganizationId).Returns((OrganizationSponsorship)null);
-            sutProvider.GetDependency<IOrganizationRepository>().GetByIdAsync(model.SponsoredOrganizationId).Returns(org);
+            sutProvider.GetDependency<IOrganizationRepository>().GetByIdAsync(model.SponsoredOrganizationId).Returns(sponsoredOrg);
 
             var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
                 sutProvider.Sut.RedeemSponsorship(sponsorshipToken, model));
@@ -397,28 +442,6 @@ namespace Bit.Api.Test.Controllers
 
             await sutProvider.GetDependency<IOrganizationSponsorshipRepository>().Received(1).DeleteAsync(sponsorship);
 
-            await sutProvider.GetDependency<IOrganizationSponsorshipService>()
-                .DidNotReceiveWithAnyArgs()
-                .RemoveSponsorshipAsync(default, default);
-        }
-
-        [Theory]
-        [BitAutoData]
-        public async Task RevokeSponsorship_SponsoredOrgNotFound_ThrowsBadRequest(OrganizationUser orgUser,
-            OrganizationSponsorship sponsorship, SutProvider<OrganizationSponsorshipsController> sutProvider)
-        {
-
-            sutProvider.GetDependency<ICurrentContext>().UserId.Returns(orgUser.UserId);
-            sutProvider.GetDependency<IOrganizationUserRepository>().GetByOrganizationAsync(orgUser.OrganizationId, orgUser.UserId.Value)
-                .Returns(orgUser);
-            sutProvider.GetDependency<IOrganizationSponsorshipRepository>()
-                .GetBySponsoringOrganizationUserIdAsync(orgUser.Id)
-                .Returns(sponsorship);
-
-            var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
-                sutProvider.Sut.RevokeSponsorship(orgUser.OrganizationId.ToString()));
-
-            Assert.Contains("Unable to find the sponsored Organization.", exception.Message);
             await sutProvider.GetDependency<IOrganizationSponsorshipService>()
                 .DidNotReceiveWithAnyArgs()
                 .RemoveSponsorshipAsync(default, default);

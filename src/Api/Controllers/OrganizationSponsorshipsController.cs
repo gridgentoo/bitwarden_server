@@ -103,7 +103,30 @@ namespace Bit.Api.Controllers
         [SelfHosted(NotSelfHostedOnly = true)]
         public async Task RedeemSponsorship([FromQuery] string sponsorshipToken, [FromBody] OrganizationSponsorshipRedeemRequestModel model)
         {
-            if (!await _organizationsSponsorshipService.ValidateRedemptionTokenAsync(sponsorshipToken))
+            var existingSponsorshipOffer = await _organizationSponsorshipRepository
+                .GetByOfferedToEmailAsync((await CurrentUser).Email);
+            if (existingSponsorshipOffer == null)
+            {
+                throw new BadRequestException("No unredeemed sponsorship offer exists for you.");
+            }
+
+            var sponsoringOrg = await _organizationRepository
+                .GetByIdAsync(existingSponsorshipOffer.SponsoringOrganizationId ?? default);
+            if (sponsoringOrg == null)
+            {
+                throw new BadRequestException("Sponsor offer is invalid, cannot find the sponsoring organization.");
+            }
+
+            var requiredSponsoringProductType = StaticStore
+                .GetSponsoredPlan(existingSponsorshipOffer.PlanSponsorshipType.Value)?.SponsoringProductType;
+            if (requiredSponsoringProductType == null ||
+                sponsoringOrg == null ||
+                StaticStore.GetPlan(sponsoringOrg.PlanType).Product != requiredSponsoringProductType.Value)
+            {
+                throw new BadRequestException("Specified Organization cannot sponsor other organizations.");
+            }
+
+            if (!await _organizationsSponsorshipService.ValidateRedemptionTokenAsync(sponsorshipToken, sponsoringOrg))
             {
                 throw new BadRequestException("Failed to parse sponsorship token.");
             }
@@ -111,16 +134,6 @@ namespace Bit.Api.Controllers
             if (!await _currentContext.OrganizationOwner(model.SponsoredOrganizationId))
             {
                 throw new BadRequestException("Can only redeem sponsorship for an organization you own.");
-            }
-            var existingSponsorshipOffer = await _organizationSponsorshipRepository
-                .GetByOfferedToEmailAsync((await CurrentUser).Email);
-            if (existingSponsorshipOffer == null)
-            {
-                throw new BadRequestException("No unredeemed sponsorship offer exists for you.");
-            }
-            if ((await CurrentUser).Email != existingSponsorshipOffer.OfferedToEmail)
-            {
-                throw new BadRequestException("This sponsorship offer was issued to a different user email address.");
             }
 
             var existingOrgSponsorship = await _organizationSponsorshipRepository
@@ -170,11 +183,6 @@ namespace Bit.Api.Controllers
 
             var sponsoredOrganization = await _organizationRepository
                 .GetByIdAsync(existingOrgSponsorship.SponsoredOrganizationId.Value);
-            if (sponsoredOrganization == null)
-            {
-                throw new BadRequestException("Unable to find the sponsored Organization.");
-            }
-
             await _organizationsSponsorshipService.RemoveSponsorshipAsync(sponsoredOrganization, existingOrgSponsorship);
         }
 
