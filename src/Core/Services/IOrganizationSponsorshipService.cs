@@ -7,7 +7,7 @@ namespace Bit.Core.Services
 {
     public interface IOrganizationSponsorshipService
     {
-        Task<bool> ValidateRedemptionTokenAsync(string encryptedToken);
+        Task<bool> ValidateRedemptionTokenAsync(string encryptedToken, Organization sponsoringOrg);
         Task OfferSponsorshipAsync(Organization sponsoringOrg, OrganizationUser sponsoringOrgUser,
             PlanSponsorshipType sponsorshipType, string sponsoredEmail, string friendlyName);
         Task SendSponsorshipOfferAsync(Organization sponsoringOrg, OrganizationSponsorship sponsorship);

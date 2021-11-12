@@ -2,45 +2,38 @@ using System;
 using System.Threading.Tasks;
 using Bit.Core.Enums;
 using Bit.Core.Exceptions;
+using Bit.Core.Models.Business;
 using Bit.Core.Models.Table;
 using Bit.Core.Repositories;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace Bit.Core.Services
 {
-    public class OrganizationSponsorshipService : IOrganizationSponsorshipService
+    public class CloudOrganizationSponsorshipService : OrganizationSponsorshipService, IOrganizationSponsorshipService
     {
-        private const string FamiliesForEnterpriseTokenName = "FamiliesForEnterpriseToken";
-        private const string TokenClearTextPrefix = "BWOrganizationSponsorship_";
-
-        private readonly IOrganizationSponsorshipRepository _organizationSponsorshipRepository;
-        private readonly IOrganizationRepository _organizationRepository;
-        private readonly IPaymentService _paymentService;
-        private readonly IMailService _mailService;
-
         private readonly IDataProtector _dataProtector;
 
-        public OrganizationSponsorshipService(IOrganizationSponsorshipRepository organizationSponsorshipRepository,
+        public CloudOrganizationSponsorshipService(IOrganizationSponsorshipRepository organizationSponsorshipRepository,
             IOrganizationRepository organizationRepository,
             IPaymentService paymentService,
             IMailService mailService,
-            IDataProtectionProvider dataProtectionProvider)
+            IDataProtectionProvider dataProtectionProvider) :
+            base(organizationSponsorshipRepository, organizationRepository, paymentService, mailService)
         {
-            _organizationSponsorshipRepository = organizationSponsorshipRepository;
-            _organizationRepository = organizationRepository;
-            _paymentService = paymentService;
-            _mailService = mailService;
-            _dataProtector = dataProtectionProvider.CreateProtector("OrganizationSponsorshipServiceDataProtector");
+            _dataProtector = dataProtectionProvider.CreateProtector("OrganizationSponsorshipServiceDxataProtector");
         }
 
-        public async Task<bool> ValidateRedemptionTokenAsync(string encryptedToken)
+        public override async Task<bool> ValidateRedemptionTokenAsync(string token, Organization sponsoringOrg)
         {
-            if (!encryptedToken.StartsWith(TokenClearTextPrefix))
+            if (!token.StartsWith(TokenClearTextPrefix))
             {
                 return false;
             }
+            var encryptedToken = token[TokenClearTextPrefix.Length..];
 
-            var decryptedToken = _dataProtector.Unprotect(encryptedToken[TokenClearTextPrefix.Length..]);
+            var decryptedToken = encryptedToken.StartsWith("Self-hosted") ?
+                new InstallationProtectedString(encryptedToken["Self-hosted".Length..]).Decrypt(sponsoringOrg.ApiKey) :
+                _dataProtector.Unprotect(encryptedToken);
             var dataParts = decryptedToken.Split(' ');
 
             if (dataParts.Length != 3)
@@ -68,48 +61,22 @@ namespace Bit.Core.Services
             return false;
         }
 
-        private string RedemptionToken(Guid sponsorshipId, PlanSponsorshipType sponsorshipType) =>
+        protected override string RedemptionToken(Guid sponsorshipId, PlanSponsorshipType sponsorshipType,
+            Organization sponsoringOrg) =>
             string.Concat(
                 TokenClearTextPrefix,
-                _dataProtector.Protect($"{FamiliesForEnterpriseTokenName} {sponsorshipId} {sponsorshipType}")
+                _dataProtector.Protect(base.RedemptionToken(sponsorshipId, sponsorshipType, sponsoringOrg))
             );
 
-        public async Task OfferSponsorshipAsync(Organization sponsoringOrg, OrganizationUser sponsoringOrgUser,
-            PlanSponsorshipType sponsorshipType, string sponsoredEmail, string friendlyName)
-        {
-            var sponsorship = new OrganizationSponsorship
-            {
-                SponsoringOrganizationId = sponsoringOrg.Id,
-                SponsoringOrganizationUserId = sponsoringOrgUser.Id,
-                FriendlyName = friendlyName,
-                OfferedToEmail = sponsoredEmail,
-                PlanSponsorshipType = sponsorshipType,
-                CloudSponsor = true,
-            };
-
-            try
-            {
-                sponsorship = await _organizationSponsorshipRepository.CreateAsync(sponsorship);
-
-                await SendSponsorshipOfferAsync(sponsoringOrg, sponsorship);
-            }
-            catch
-            {
-                if (sponsorship.Id != default)
-                {
-                    await _organizationSponsorshipRepository.DeleteAsync(sponsorship);
-                }
-                throw;
-            }
-        }
-
-        public async Task SendSponsorshipOfferAsync(Organization sponsoringOrg, OrganizationSponsorship sponsorship)
+        public override async Task SendSponsorshipOfferAsync(Organization sponsoringOrg,
+            OrganizationSponsorship sponsorship)
         {
             await _mailService.SendFamiliesForEnterpriseOfferEmailAsync(sponsorship.OfferedToEmail, sponsoringOrg.Name,
-                RedemptionToken(sponsorship.Id, sponsorship.PlanSponsorshipType.Value));
+                RedemptionToken(sponsorship.Id, sponsorship.PlanSponsorshipType.Value, sponsoringOrg));
         }
 
-        public async Task SetUpSponsorshipAsync(OrganizationSponsorship sponsorship, Organization sponsoredOrganization)
+        public override async Task SetUpSponsorshipAsync(OrganizationSponsorship sponsorship,
+            Organization sponsoredOrganization)
         {
             if (sponsorship.PlanSponsorshipType == null)
             {
@@ -120,12 +87,10 @@ namespace Bit.Core.Services
             await _paymentService.SponsorOrganizationAsync(sponsoredOrganization, sponsorship);
             await _organizationRepository.UpsertAsync(sponsoredOrganization);
 
-            sponsorship.SponsoredOrganizationId = sponsoredOrganization.Id;
-            sponsorship.OfferedToEmail = null;
-            await _organizationSponsorshipRepository.UpsertAsync(sponsorship);
+            await base.SetUpSponsorshipAsync(sponsorship, sponsoredOrganization);
         }
 
-        public async Task<bool> ValidateSponsorshipAsync(Guid sponsoredOrganizationId)
+        public override async Task<bool> ValidateSponsorshipAsync(Guid sponsoredOrganizationId)
         {
             var sponsoredOrganization = await _organizationRepository.GetByIdAsync(sponsoredOrganizationId);
             if (sponsoredOrganization == null)
@@ -142,7 +107,9 @@ namespace Bit.Core.Services
                 return false;
             }
 
-            if (existingSponsorship.SponsoringOrganizationId == null || existingSponsorship.SponsoringOrganizationUserId == null || existingSponsorship.PlanSponsorshipType == null)
+            if (existingSponsorship.SponsoringOrganizationId == null ||
+                existingSponsorship.SponsoringOrganizationUserId == null ||
+                existingSponsorship.PlanSponsorshipType == null)
             {
                 await RemoveSponsorshipAsync(sponsoredOrganization, existingSponsorship);
                 return false;
@@ -167,7 +134,8 @@ namespace Bit.Core.Services
             return true;
         }
 
-        public async Task RemoveSponsorshipAsync(Organization sponsoredOrganization, OrganizationSponsorship sponsorship = null)
+        public override async Task RemoveSponsorshipAsync(Organization sponsoredOrganization,
+            OrganizationSponsorship sponsorship = null)
         {
             if (sponsoredOrganization != null)
             {
