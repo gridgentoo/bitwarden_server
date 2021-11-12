@@ -67,7 +67,7 @@ namespace Bit.Admin
             }
 
             // Services
-            services.AddBaseServices();
+            services.AddBaseServices(globalSettings);
             services.AddDefaultServices(globalSettings);
             
             #if OSS

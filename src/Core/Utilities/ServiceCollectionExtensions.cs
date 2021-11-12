@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -165,7 +165,7 @@ namespace Bit.Core.Utilities
             }
         }
 
-        public static void AddBaseServices(this IServiceCollection services)
+        public static void AddBaseServices(this IServiceCollection services, GlobalSettings globalSettings)
         {
             services.AddScoped<ICipherService, CipherService>();
             services.AddScoped<IUserService, UserService>();
