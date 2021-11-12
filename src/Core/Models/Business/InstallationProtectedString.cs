@@ -73,12 +73,12 @@ namespace Bit.Core.Models.Business
                     using (var decryptor = aes.CreateDecryptor(encKey, IV))
                     using (var clearStream = new MemoryStream())
                     using (var reader = new StreamReader(clearStream))
+                    using (var decryptorStream = new CryptoStream(clearStream, decryptor, CryptoStreamMode.Write))
+                    using (var binaryWriter = new BinaryWriter(decryptorStream))
                     {
-                        using (var decrypterStream = new CryptoStream(clearStream, decryptor, CryptoStreamMode.Write))
-                        using (var binaryWriter = new BinaryWriter(decrypterStream))
-                        {
-                            binaryWriter.Write(Data);
-                        }
+                        binaryWriter.Write(Data);
+                        binaryWriter.Flush();
+                        decryptorStream.FlushFinalBlock();
                         clearStream.Position = 0;
 
                         return reader.ReadToEnd();
@@ -102,12 +102,12 @@ namespace Bit.Core.Models.Business
 
                 using (var encryptor = aes.CreateEncryptor(encKey, iv))
                 using (var encStream = new MemoryStream())
+                using (var cryptoStream = new CryptoStream(encStream, encryptor, CryptoStreamMode.Write))
+                using (var binaryWriter = new BinaryWriter(cryptoStream))
                 {
-                    using (var cryptoStream = new CryptoStream(encStream, encryptor, CryptoStreamMode.Write))
-                    using (var binaryWriter = new BinaryWriter(cryptoStream))
-                    {
-                        binaryWriter.Write(clearText);
-                    }
+                    binaryWriter.Write(Encoding.UTF8.GetBytes(clearText));
+                    binaryWriter.Flush();
+                    cryptoStream.FlushFinalBlock();
 
                     data = encStream.ToArray();
                 }
