@@ -68,6 +68,7 @@ namespace Bit.Core.Models.Table
         public DateTime RevisionDate { get; internal set; } = DateTime.UtcNow;
         public int? MaxAutoscaleSeats { get; set; } = null;
         public DateTime? OwnersNotifiedOfAutoscaling { get; set; } = null;
+        public string CloudApiKey { get; set; }
 
         public void SetNewId()
         {
