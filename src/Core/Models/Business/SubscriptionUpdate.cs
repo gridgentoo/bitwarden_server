@@ -137,7 +137,7 @@ namespace Bit.Core.Models.Business
         public override List<SubscriptionItemOptions> RevertItemsOptions(Subscription subscription)
         {
             var result = new List<SubscriptionItemOptions>();
-            if (AddStripeItem(subscription) != null)
+            if (AddStripePlanId != null)
             {
                 result.Add(new SubscriptionItemOptions
                 {
@@ -148,7 +148,7 @@ namespace Bit.Core.Models.Business
                 });
             }
 
-            if (RemoveStripeItem(subscription) != null)
+            if (RemoveStripePlanId != null)
             {
                 result.Add(new SubscriptionItemOptions
                 {
@@ -164,7 +164,7 @@ namespace Bit.Core.Models.Business
         public override List<SubscriptionItemOptions> UpgradeItemsOptions(Subscription subscription)
         {
             var result = new List<SubscriptionItemOptions>();
-            if (RemoveStripeItem(subscription) != null)
+            if (RemoveStripePlanId != null)
             {
                 result.Add(new SubscriptionItemOptions
                 {
@@ -175,7 +175,7 @@ namespace Bit.Core.Models.Business
                 });
             }
 
-            if (AddStripeItem(subscription) != null)
+            if (AddStripePlanId != null)
             {
                 result.Add(new SubscriptionItemOptions
                 {

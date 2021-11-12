@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -170,7 +170,6 @@ namespace Bit.Core.Utilities
             services.AddScoped<ICipherService, CipherService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IOrganizationService, OrganizationService>();
-            services.AddScoped<IOrganizationSponsorshipService, OrganizationSponsorshipService>();
             services.AddScoped<ICollectionService, CollectionService>();
             services.AddScoped<IGroupService, GroupService>();
             services.AddScoped<IPolicyService, PolicyService>();
@@ -180,6 +179,15 @@ namespace Bit.Core.Utilities
             services.AddSingleton<IAppleIapService, AppleIapService>();
             services.AddSingleton<ISsoConfigService, SsoConfigService>();
             services.AddScoped<ISendService, SendService>();
+
+            if (globalSettings.SelfHosted)
+            {
+                services.AddScoped<IOrganizationSponsorshipService, SelfHostedOrganizationSponsorshipService>();
+            }
+            else
+            {
+                services.AddScoped<IOrganizationSponsorshipService, CloudOrganizationSponsorshipService>();
+            }
         }
 
         public static void AddDefaultServices(this IServiceCollection services, GlobalSettings globalSettings)
