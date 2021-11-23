@@ -1,8 +1,25 @@
-# Secure AWS credentials with Bitwarden.  
+# Оригинальный репозиторий
+https://github.com/bitwarden/server
+
+Secure AWS credentials with Bitwarden.  
 https://aws.plainenglish.io/how-to-secure-your-aws-credentials-269a730a2be9
 
-# оригинальный репозиторий
-https://github.com/bitwarden/server
+
+How I Setup Bitwarden on Oracle Cloud Free Tier with Cloudflare.  
+https://andtheysay.medium.com/how-i-setup-bitwarden-on-oracle-cloud-free-tier-with-cloudflare-b882579eab80
+
+
+Using Bitwarden CLI to Manage Multiple AWS Credentials  
+https://medium.com/@tylerdavidharris/using-bitwarden-cli-to-manage-multiple-aws-credentials-b4a392067763
+
+
+Better Protect Your Local #AWS Keys With Bitwarden  
+https://medium.com/geekculture/beter-protect-your-local-aws-keys-with-bitwarden-9f63055544dc
+
+
+Setting up a Private Bitwarden Password Vault in 5 Minutes with Docker  
+https://medium.com/swlh/set-up-your-own-personal-password-vault-313d76374046
+
 
 <p align="center">
   <img src="https://github.com/bitwarden/brand/blob/master/screenshots/apps-combo-logo.png" alt="Bitwarden" />
