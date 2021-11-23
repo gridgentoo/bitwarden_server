@@ -1,3 +1,9 @@
+# Secure AWS credentials with Bitwarden.  
+https://aws.plainenglish.io/how-to-secure-your-aws-credentials-269a730a2be9
+
+# оригинальный репозиторий
+https://github.com/bitwarden/server
+
 <p align="center">
   <img src="https://github.com/bitwarden/brand/blob/master/screenshots/apps-combo-logo.png" alt="Bitwarden" />
 </p>
