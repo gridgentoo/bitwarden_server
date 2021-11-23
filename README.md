@@ -1,4 +1,4 @@
-# Оригинальный репозиторий
+Оригинальный репозиторий
 https://github.com/bitwarden/server
 
 Secure AWS credentials with Bitwarden.  
